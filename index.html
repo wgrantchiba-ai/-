@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理番号メーカー</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2228;--sub:#6b7480;--line:#d9dde3;--accent:#1f5fbf;--accent-ink:#fff;--warn:#b3261e;--ok:#1e7a3c;--soft:#eef3fb}
+@media (prefers-color-scheme:dark){:root{--bg:#15181c;--card:#1e2227;--ink:#e8ebef;--sub:#9aa3ad;--line:#343a42;--accent:#6ea2ff;--accent-ink:#0d1420;--warn:#ff8a80;--ok:#7bd88f;--soft:#232b38}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","YuGothic","Meiryo",sans-serif;line-height:1.6}
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.4rem;margin:0 0 4px}
+.lead{color:var(--sub);font-size:.9rem;margin:0 0 16px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;padding:10px 8px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font:inherit;font-weight:700;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.grid{grid-template-columns:1fr}}
+label{display:block;font-size:.85rem;font-weight:700;margin-bottom:4px}
+label small{font-weight:400;color:var(--sub)}
+input,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:1rem}
+.hidden{display:none!important}
+.result{margin-top:16px;text-align:center;padding:16px;border-radius:12px;background:var(--soft)}
+.num{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;font-size:2.2rem;font-weight:700;letter-spacing:.04em;word-break:break-all}
+.num.multi{font-size:1.4rem;line-height:1.5}
+.msg{min-height:1.4em;font-size:.9rem;color:var(--warn)}
+.btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.btns button{padding:10px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;cursor:pointer}
+.btns button.ghost{background:transparent;color:var(--accent)}
+.btns button:disabled{opacity:.4;cursor:default}
+.parts{font-size:.8rem;color:var(--sub);margin-top:6px}
+h2{font-size:1rem;margin:24px 0 8px}
+table{width:100%;border-collapse:collapse;font-size:.9rem;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--sub);font-weight:700;font-size:.8rem}
+td.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700}
+.empty{color:var(--sub);font-size:.9rem}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>管理番号メーカー</h1>
+  <p class="lead">販路を選んで入力すると、管理番号ができます。</p>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" data-ch="yahoo" aria-selected="true">ヤフオク</button>
+    <button role="tab" data-ch="catawiki" aria-selected="false">キャタウィキ</button>
+    <button role="tab" data-ch="ebay" aria-selected="false">eBay</button>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label for="serial">通し番号 <small id="serialHint">（1〜999）</small></label>
+        <input id="serial" type="number" inputmode="numeric" min="1">
+      </div>
+      <div>
+        <label for="date">仕入日 <small>（月・年に使います）</small></label>
+        <input id="date" type="date">
+      </div>
+      <div>
+        <label for="buyer">仕入者</label>
+        <select id="buyer"></select>
+      </div>
+      <div class="only-yahoo">
+        <label for="ship">発送方法</label>
+        <select id="ship"></select>
+      </div>
+      <div class="only-yahoo">
+        <label for="photo">撮影者 <small>（小文字1字）</small></label>
+        <input id="photo" type="text" maxlength="1" autocapitalize="none" autocomplete="off" placeholder="例：g">
+      </div>
+      <div class="only-yahoo">
+        <label for="size">発送サイズ</label>
+        <select id="size"></select>
+        <input id="sizeOther" class="hidden" type="number" inputmode="numeric" min="1" max="999" placeholder="サイズを数字で入力" style="margin-top:6px">
+      </div>
+      <div class="only-ebay hidden">
+        <label for="branches">まとめ仕入れの点数 <small>（単品は空欄）</small></label>
+        <input id="branches" type="number" inputmode="numeric" min="1" max="99" placeholder="例：5 → -1〜-5">
+      </div>
+    </div>
+
+    <div class="result">
+      <div id="out" class="num">―</div>
+      <div id="parts" class="parts"></div>
+      <div id="msg" class="msg"></div>
+      <div class="btns">
+        <button id="copy" disabled>コピー</button>
+        <button id="save" class="ghost" disabled>履歴に追加して次の番号へ</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>作った番号（この端末のみ）</h2>
+  <div id="histWrap"></div>
+  <div class="btns" style="justify-content:flex-start">
+    <button id="copyAll" class="ghost">履歴をすべてコピー</button>
+    <button id="clear" class="ghost">履歴を消す</button>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== コード表（変更はここだけ） =====
+const BUYERS = [["阿部","A"],["大石","O"],["齋藤","R"],["町田","G"],["池田","I"],["伊野","H"],["平沢","Y"],["小関","F"],["真辺","U"],["朝田","V"],["望月","Z"],["田中","D"],["齋藤市場","Q"],["髙橋","K"],["工藤","M"],["全国まとめ","B"],["三分割（朝田）","L"],["三分割","W"]];
+const SHIPS = [["ゆうパック","A"],["レタ赤／ゆう60","B"],["レタ青／ゆう60","C"],["レタ青／ゆうパケポ他","D"],["ヤマト","E"],["ネコポス","F"],["佐川","G"],["ゴルフ／スキー便","H"],["家財便","I"],["直接","J"],["その他1","K"],["その他2","L"],["その他3","M"]];
+const SIZES = [60,80,100,120,140,160,170,180];
+// =====================================
+
+const $ = id => document.getElementById(id);
+let ch = "yahoo", current = [];
+const fill = (sel, rows, ph) => { sel.innerHTML = `<option value="">${ph}</option>` + rows.map(([n,c]) => `<option value="${c}">${n}（${c}）</option>`).join(""); };
+fill($("buyer"), BUYERS, "選んでください");
+fill($("ship"), SHIPS, "選んでください");
+$("size").innerHTML = '<option value="">選んでください</option>' + SIZES.map(s => `<option value="${s}">${s}サイズ</option>`).join("") + '<option value="other">それ以外（記入）</option>';
+const today = new Date(); $("date").value = new Date(today - today.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+
+const store = { get(){ try { return JSON.parse(localStorage.getItem("kanri-hist") || "[]"); } catch(e){ return mem; } },
+                set(v){ mem = v; try { localStorage.setItem("kanri-hist", JSON.stringify(v)); } catch(e){} } };
+let mem = [];
+const pad = (n, w) => String(n).padStart(w, "0");
+const monthCode = m => String.fromCharCode(64 + m);
+
+function build(){
+  const msg = [], s = $("serial").value.trim(), d = $("date").value, b = $("buyer").value;
+  const max = ch === "yahoo" ? 999 : 9999, w = ch === "yahoo" ? 3 : 4;
+  if (!s) msg.push("通し番号"); else if (!/^\d+$/.test(s) || +s < 1 || +s > max) return fail(`通し番号は1〜${max}の数字で入力してください`);
+  if (!d) msg.push("仕入日");
+  if (!b) msg.push("仕入者");
+  let ship, photo, size;
+  if (ch === "yahoo"){
+    ship = $("ship").value; if (!ship) msg.push("発送方法");
+    photo = $("photo").value.trim();
+    if (!photo) msg.push("撮影者"); else if (!/^[a-z]$/.test(photo)) return fail("撮影者は小文字の英字1字で入力してください");
+    size = $("size").value === "other" ? $("sizeOther").value.trim() : $("size").value;
+    if (!size) msg.push("発送サイズ"); else if (!/^\d{1,3}$/.test(size) || +size < 1) return fail("発送サイズは1〜999の数字で入力してください");
+  }
+  if (msg.length) return fail(msg.join("・") + " を入力してください", true);
+  const [Y, M] = d.split("-").map(Number), mc = monthCode(M), serial = pad(+s, w);
+  if (ch === "yahoo"){
+    current = [serial + ship + mc + photo + b + pad(+size, 3)];
+    $("parts").textContent = `${serial}｜発送${ship}｜${M}月=${mc}｜撮影${photo}｜仕入${b}｜サイズ${pad(+size,3)}`;
+  } else {
+    const base = serial + (Y % 10) + mc + b;
+    const n = ch === "ebay" ? $("branches").value.trim() : "";
+    if (n && (!/^\d+$/.test(n) || +n < 1 || +n > 99)) return fail("まとめ仕入れの点数は1〜99で入力してください");
+    current = n ? Array.from({length:+n}, (_, i) => `${base}-${i+1}`) : [base];
+    $("parts").textContent = `${serial}｜${Y}年=${Y%10}｜${M}月=${mc}｜仕入${b}` + (n ? `｜枝番 -1〜-${n}` : "");
+  }
+  $("out").textContent = current.join("\n"); $("out").classList.toggle("multi", current.length > 1);
+  $("out").style.whiteSpace = "pre-line";
+  $("msg").textContent = dupCheck();
+  $("copy").disabled = $("save").disabled = false;
+}
+function fail(t, soft){ current = []; $("out").textContent = "―"; $("out").classList.remove("multi"); $("parts").textContent = ""; $("msg").textContent = t; $("copy").disabled = $("save").disabled = true; }
+function dupCheck(){ const h = store.get().map(x => x.no); const d = current.filter(c => h.includes(c)); return d.length ? `※履歴に同じ番号があります：${d.join("、")}` : ""; }
+
+function toast(t){ const el = $("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1400); }
+async function copy(text){ try { await navigator.clipboard.writeText(text); } catch(e){ const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); } toast("コピーしました"); }
+
+function render(){
+  const h = store.get();
+  if (!h.length){ $("histWrap").innerHTML = '<p class="empty">まだありません。</p>'; return; }
+  const names = {yahoo:"ヤフオク",catawiki:"キャタウィキ",ebay:"eBay"};
+  $("histWrap").innerHTML = "<table><thead><tr><th>管理番号</th><th>販路</th><th>作成日時</th></tr></thead><tbody>" +
+    h.slice().reverse().map(x => `<tr><td class="mono">${x.no}</td><td>${names[x.ch]}</td><td>${x.at}</td></tr>`).join("") + "</tbody></table>";
+}
+
+document.querySelectorAll(".tabs button").forEach(btn => btn.onclick = () => {
+  ch = btn.dataset.ch;
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b === btn));
+  document.querySelectorAll(".only-yahoo").forEach(e => e.classList.toggle("hidden", ch !== "yahoo"));
+  document.querySelectorAll(".only-ebay").forEach(e => e.classList.toggle("hidden", ch !== "ebay"));
+  $("serialHint").textContent = ch === "yahoo" ? "（1〜999）" : "（1〜9999）";
+  build();
+});
+$("size").onchange = () => { $("sizeOther").classList.toggle("hidden", $("size").value !== "other"); build(); };
+$("photo").addEventListener("input", e => { e.target.value = e.target.value.toLowerCase(); });
+document.querySelectorAll("input,select").forEach(el => el.addEventListener("input", build));
+$("copy").onclick = () => copy(current.join("\n"));
+$("save").onclick = () => {
+  const at = new Date().toLocaleString("ja-JP", {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  store.set(store.get().concat(current.map(no => ({no, ch, at}))));
+  copy(current.join("\n"));
+  $("serial").value = +$("serial").value + 1; $("branches").value = "";
+  render(); build();
+};
+$("copyAll").onclick = () => { const h = store.get(); if (h.length) copy(h.map(x => x.no).join("\n")); };
+$("clear").onclick = () => { if (store.get().length){ store.set([]); render(); build(); toast("履歴を消しました"); } };
+render(); build();
+</script>
+</body>
+</html>
